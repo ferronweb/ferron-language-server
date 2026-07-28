@@ -1,0 +1,110 @@
+name: Rust
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      #- "Cross.toml"
+      - "src/**"
+      - "build.rs"
+      - ".github/workflows/rust.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      #- "Cross.toml"
+      - "src/**"
+      - "build.rs"
+      - ".github/workflows/rust.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # test:
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v6
+
+  #     - name: Setup cache
+  #       uses: Swatinem/rust-cache@v2
+
+  #     - name: Run Cargo tests
+  #       run: cargo test --workspace --verbose
+
+      # - name: Build binaries
+      #   shell: bash
+      #   run: |
+      #     make build-dev CARGO_FINAL_EXTRA_ARGS="--verbose"
+
+      # - name: Smoke test the binary
+      #   shell: bash
+      #   run: |
+      #     FERRON="$(pwd)/target/debug/ferron" bash smoketest/smoketest.sh
+
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Setup cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all
+
+      - name: Check linting
+        run: cargo clippy --fix --allow-dirty --workspace -- -D warnings
+
+      - name: Commit fixed Rust code
+        if: "!cancelled() && github.ref_name == 'develop-3.x'"
+        shell: bash
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add .
+            git commit -m 'fix: fix lint errors and format the code [skip ci]'
+            git push origin develop-3.x
+          fi
+
+  depcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install "cargo shear"
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall --no-confirm cargo-shear --force
+
+      - name: Check for unused dependencies
+        run: cargo shear
+
+  # audit:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v6
+
+  #     - name: Install "cargo audit"
+  #       run: |
+  #         curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+  #         cargo binstall --no-confirm cargo-audit --force
+
+  #     - name: Check for vulnerable dependencies
+  #       run: cargo audit

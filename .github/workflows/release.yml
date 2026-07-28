@@ -1,0 +1,233 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    runs-on: ${{ matrix.runner }}
+
+    permissions:
+      contents: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+            command: cross
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            command: cross
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            command: cargo
+          - target: aarch64-pc-windows-msvc
+            runner: windows-latest
+            command: cargo
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            command: cargo
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            command: cargo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: "${{ matrix.target }}"
+
+      - name: Setup cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            build/prepare/target/
+            target/
+          key: ReleaseFerron2-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ReleaseFerron2-${{ runner.os }}-${{ matrix.target }}-
+
+      - name: Determine version
+        shell: bash
+        run: |
+          FERRON_VERSION_CARGO="$(cat Cargo.toml | grep -E '^version' | sed -E 's|.*"([0-9a-zA-Z.+-]+)"$|\1|g')"
+          FERRON_VERSION_GIT="$(git tag --sort=-committerdate | head -n 1 | sed s/[^0-9a-zA-Z.+-]//g)"
+          if [ "$FERRON_VERSION_CARGO" != "" ]; then
+            echo "Version determined from Cargo.toml file"
+            echo "FERRON_VERSION=$FERRON_VERSION_CARGO" >> $GITHUB_ENV
+          elif  [ "$FERRON_VERSION_GIT" != "" ]; then
+            echo "Version determined from the Git tag"
+            echo "FERRON_VERSION=$FERRON_VERSION_GIT" >> $GITHUB_ENV
+          else
+            echo "Can't determine the server version!" 2>&1
+            exit 1
+          fi
+
+      - name: Setup NASM
+        if: matrix.runner == 'windows-latest'
+        uses: ilammy/setup-nasm@v1
+
+      - name: Install Cross
+        if: matrix.command == 'cross'
+        shell: bash
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall --no-confirm cross --force
+
+      - name: Install bindgen-cli
+        if: matrix.command != 'cross'
+        shell: bash
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall --no-confirm bindgen-cli --force
+
+      - name: Build binaries
+        shell: bash
+        run: |
+          ${{ matrix.command }} build --release --verbose --target ${{ matrix.target }}
+
+      - name: Create a release archive (Unix)
+        if: "!contains(matrix.target, '-windows-')"
+        shell: bash
+        run: |
+          { echo; cat CHANGELOG.md; } | sed '1,/^## /d;/^## /,$d;/^\*\*Released in/d;' | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' > CHANGES-CURRENT
+          mkdir release
+          gzip -c target/${{ matrix.target }}/release/ferron-language-server > ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz
+
+      - name: Create a release archive (Windows)
+        if: "contains(matrix.target, '-windows-')"
+        shell: bash
+        run: |
+          { echo; cat CHANGELOG.md; } | sed '1,/^## /d;/^## /,$d;/^\*\*Released in/d;' | sed -e '/./,$!d' -e :a -e '/^\n*$/{$d;N;ba' -e '}' > CHANGES-CURRENT
+          mkdir release
+          # Use 7zip to create a zip archive
+          PROJECT_ROOT=$(pwd)
+          pushd target/${{ matrix.target }}/release
+          7z a -tzip $PROJECT_ROOT/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip ferron-language-server.exe
+          popd
+
+      - name: Set up SSH
+        uses: LuisEnMarroquin/setup-ssh-action@v3.0.0
+        with:
+          ORIGIN: ${{ secrets.SSH_HOSTNAME }}
+          SSHKEY: ${{ secrets.SSH_KEY }}
+          NAME: ferron-servers
+          PORT: ${{ secrets.SSH_PORT }}
+          USER: ${{ secrets.SSH_USERNAME }}
+
+      - name: Release Ferron on Ferron's servers (Windows)
+        if: "contains(matrix.target, '-windows-')"
+        shell: bash
+        run: |
+          ssh ferron-servers "mkdir -p ferronl || true"
+          scp ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz ferron-servers:ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz
+
+          # Call the internal "deploy-ferronl" shell script
+          ssh ferron-servers "/usr/bin/sudo-rs deploy-ferronl archive ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz"
+
+      - name: Release Ferron on Ferron's servers (non-Windows)
+        if: "!contains(matrix.target, '-windows-')"
+        shell: bash
+        run: |
+          ssh ferron-servers "mkdir -p ferronl || true"
+          scp ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip ferron-servers:ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip
+
+          # Call the internal "deploy-ferronl" shell script
+          ssh ferron-servers "/usr/bin/sudo-rs deploy-ferronl archive ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip"
+
+      - name: Release Ferron to GitHub (Windows)
+        if: "contains(matrix.target, '-windows-')"
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip"
+          bodyFile: "CHANGES-CURRENT"
+          tag: "${{ env.FERRON_VERSION }}"
+          commit: "main"
+
+      - name: Release Ferron to GitHub (non-Windows)
+        if: "!contains(matrix.target, '-windows-')"
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz"
+          bodyFile: "CHANGES-CURRENT"
+          tag: "${{ env.FERRON_VERSION }}"
+          commit: "main"
+
+      - name: Upload artifacts for further packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}
+          path: target/*
+          overwrite: true
+
+  upload-package:
+    runs-on: ubuntu-latest
+    needs:
+      - release
+
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: "${{ matrix.target }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "lts/*"
+          package-manager-cache: false  # never use caching in release builds
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install cargo-npm
+        shell: bash
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall --no-confirm cargo-npm --force
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: target/
+          merge-multiple: true
+
+      - name: Generate npm packages
+        shell: bash
+        run: cargo npm generate --infer-targets
+
+      - name: Publish npm packages
+        shell: bash
+        run: cargo npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Rust crate
+        run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
