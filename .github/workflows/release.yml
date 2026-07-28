@@ -60,8 +60,8 @@ jobs:
             ~/.cargo/git/db/
             build/prepare/target/
             target/
-          key: ReleaseFerron2-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ReleaseFerron2-${{ runner.os }}-${{ matrix.target }}-
+          key: ReleaseFerronLSP-${{ runner.os }}-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ReleaseFerronLSP-${{ runner.os }}-${{ matrix.target }}-
 
       - name: Determine version
         shell: bash
