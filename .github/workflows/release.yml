@@ -223,7 +223,7 @@ jobs:
 
       - name: Publish npm packages
         shell: bash
-        run: cargo npm publish
+        run: cargo npm publish -- --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
