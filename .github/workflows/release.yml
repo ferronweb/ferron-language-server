@@ -131,8 +131,8 @@ jobs:
           PORT: ${{ secrets.SSH_PORT }}
           USER: ${{ secrets.SSH_USERNAME }}
 
-      - name: Release Ferron on Ferron's servers (Windows)
-        if: "contains(matrix.target, '-windows-')"
+      - name: Release Ferron on Ferron's servers (non-Windows)
+        if: "!contains(matrix.target, '-windows-')"
         shell: bash
         run: |
           ssh ferron-servers "mkdir -p ferronl || true"
@@ -141,8 +141,8 @@ jobs:
           # Call the internal "deploy-ferronl" shell script
           ssh ferron-servers "/usr/bin/sudo-rs deploy-ferronl archive ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz"
 
-      - name: Release Ferron on Ferron's servers (non-Windows)
-        if: "!contains(matrix.target, '-windows-')"
+      - name: Release Ferron on Ferron's servers (Windows)
+        if: "contains(matrix.target, '-windows-')"
         shell: bash
         run: |
           ssh ferron-servers "mkdir -p ferronl || true"
@@ -151,22 +151,22 @@ jobs:
           # Call the internal "deploy-ferronl" shell script
           ssh ferron-servers "/usr/bin/sudo-rs deploy-ferronl archive ferronl/ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip"
 
-      - name: Release Ferron to GitHub (Windows)
-        if: "contains(matrix.target, '-windows-')"
-        uses: ncipollo/release-action@v1
-        with:
-          allowUpdates: true
-          artifacts: "ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip"
-          bodyFile: "CHANGES-CURRENT"
-          tag: "${{ env.FERRON_VERSION }}"
-          commit: "main"
-
       - name: Release Ferron to GitHub (non-Windows)
         if: "!contains(matrix.target, '-windows-')"
         uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: "ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.gz"
+          bodyFile: "CHANGES-CURRENT"
+          tag: "${{ env.FERRON_VERSION }}"
+          commit: "main"
+
+      - name: Release Ferron to GitHub (Windows)
+        if: "contains(matrix.target, '-windows-')"
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "ferron-language-server-${{ env.FERRON_VERSION }}-${{ matrix.target }}.zip"
           bodyFile: "CHANGES-CURRENT"
           tag: "${{ env.FERRON_VERSION }}"
           commit: "main"
