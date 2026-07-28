@@ -202,6 +202,7 @@ impl Backend {
     fn find_block_end_pos(text: &str, open_brace_line: usize) -> (usize, usize) {
         let lines: Vec<&str> = text.lines().collect();
         let mut depth = 0i32;
+        #[allow(clippy::needless_range_loop)]
         for i in open_brace_line..lines.len() {
             for (j, ch) in lines[i].chars().enumerate() {
                 match ch {

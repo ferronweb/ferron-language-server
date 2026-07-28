@@ -20,12 +20,12 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
     // 1. Obtain the latest version info for Ferron 3 from https://dl.ferron.sh/latest3.ferron
     let latest_ferron_version = reqwest::get("https://dl.ferron.sh/latest3.ferron")
         .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+        .map_err(std::io::Error::other)?
         .error_for_status()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+        .map_err(std::io::Error::other)?
         .text()
         .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
     let latest_ferron_version = latest_ferron_version.trim();
 
     // 2. Obtain the latest version of Ferron 3 from:
@@ -48,12 +48,12 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
     };
     let ferron_archive = reqwest::get(&ferron_url)
         .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+        .map_err(std::io::Error::other)?
         .error_for_status()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+        .map_err(std::io::Error::other)?
         .bytes()
         .await
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        .map_err(std::io::Error::other)?;
 
     // 3. Extract the archive to the download directory
     #[cfg(not(windows))]
