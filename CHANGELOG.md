@@ -1,8 +1,8 @@
 # Ferron language server changelog
 
-## `ferron-language-server` UNRELEASED
+## `ferron-language-server` 0.1.1
 
-**Not yet released**
+**Released in July 29, 2026**
 
 - Changed the default Ferron download directory to use `ferron-language-server` instead of `.ferron-language-server-dl`.
 - Fixed on-save hook not working with Zed, due to strict capability handling.
