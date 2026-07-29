@@ -445,10 +445,10 @@ impl LanguageServer for Backend {
         if file_path.file_name() != Some("ferron.conf".as_ref())
             && file_path
                 .file_name()
-                .is_none_or(|f| f.to_string_lossy().ends_with(".ferron"))
+                .is_none_or(|f| !f.to_string_lossy().ends_with(".ferron"))
             && file_path
                 .file_name()
-                .is_none_or(|f| f.to_string_lossy().ends_with(".ferron.conf"))
+                .is_none_or(|f| !f.to_string_lossy().ends_with(".ferron.conf"))
         {
             return;
         }
