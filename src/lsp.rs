@@ -440,6 +440,19 @@ impl LanguageServer for Backend {
             Err(_) => return,
         };
 
+        // Reject everything that's not "ferron.conf"
+        // This is because Zed triggers didSave for every file, not just ferron.conf
+        if file_path.file_name() != Some("ferron.conf".as_ref())
+            && file_path
+                .file_name()
+                .is_none_or(|f| f.to_string_lossy().ends_with(".ferron"))
+            && file_path
+                .file_name()
+                .is_none_or(|f| f.to_string_lossy().ends_with(".ferron.conf"))
+        {
+            return;
+        }
+
         let result =
             directives::run_doctor(&self.path_to_ferron, &file_path.to_string_lossy()).await;
 
