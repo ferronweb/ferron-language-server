@@ -15,7 +15,7 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
         // Don't download again if already present
         return Ok(ferron_dl_dir);
     }
-    std::fs::create_dir_all(&ferron_dl_dir)?;
+    tokio::fs::create_dir_all(&ferron_dl_dir).await?;
 
     // 1. Obtain the latest version info for Ferron 3 from https://dl.ferron.sh/latest3.ferron
     let latest_ferron_version = reqwest::get("https://dl.ferron.sh/latest3.ferron")
@@ -64,6 +64,28 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
         tokio_tar::Archive::new(&mut gunzipped)
             .unpack(&ferron_dl_dir)
             .await?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            // Make `ferron` and `ferron-fmt` executable
+            if let Ok(metadata) = tokio::fs::metadata(&ferron_dl_dir.join("ferron")).await {
+                let mut permissions = metadata.permissions();
+                let old_mode = permissions.mode();
+                let mode_read = old_mode & 0o444;
+                let mode_exec = mode_read >> 2; // r--r--r-- => --x--x--x
+                permissions.set_mode(old_mode | mode_exec);
+                tokio::fs::set_permissions(&ferron_dl_dir.join("ferron"), permissions).await?;
+            }
+            if let Ok(metadata) = tokio::fs::metadata(&ferron_dl_dir.join("ferron-fmt")).await {
+                let mut permissions = metadata.permissions();
+                let old_mode = permissions.mode();
+                let mode_read = old_mode & 0o444;
+                let mode_exec = mode_read >> 2; // r--r--r-- => --x--x--x
+                permissions.set_mode(old_mode | mode_exec);
+                tokio::fs::set_permissions(&ferron_dl_dir.join("ferron-fmt"), permissions).await?;
+            }
+        }
     }
     #[cfg(windows)]
     {
