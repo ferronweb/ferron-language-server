@@ -6,7 +6,7 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
             std::io::ErrorKind::NotFound,
             "data local directory not found",
         ))?
-        .join(".ferron-language-server-dl");
+        .join("ferron-language-server");
     if tokio::fs::try_exists(&ferron_dl_dir).await.unwrap_or(false)
         || tokio::fs::try_exists(ferron_dl_dir.join("ferron.exe"))
             .await
