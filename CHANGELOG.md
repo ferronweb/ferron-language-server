@@ -1,5 +1,11 @@
 # Ferron language server changelog
 
+## `ferron-language-server` UNRELEASED
+
+**Not yet released**
+
+- The language server now updates Ferron to the latest version when available.
+
 ## `ferron-language-server` 0.1.1
 
 **Released in July 29, 2026**

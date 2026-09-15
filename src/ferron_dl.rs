@@ -7,26 +7,31 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
             "data local directory not found",
         ))?
         .join("ferron-language-server");
-    if tokio::fs::try_exists(&ferron_dl_dir).await.unwrap_or(false)
-        || tokio::fs::try_exists(ferron_dl_dir.join("ferron.exe"))
-            .await
-            .unwrap_or(false)
-    {
-        // Don't download again if already present
-        return Ok(ferron_dl_dir);
-    }
-    tokio::fs::create_dir_all(&ferron_dl_dir).await?;
 
     // 1. Obtain the latest version info for Ferron 3 from https://dl.ferron.sh/latest3.ferron
-    let latest_ferron_version = reqwest::get("https://dl.ferron.sh/latest3.ferron")
+    let latest_ferron_version = match get_latest_ferron_version().await {
+        Ok(version) => version,
+        Err(e) => {
+            if tokio::fs::try_exists(&ferron_dl_dir).await.unwrap_or(false) {
+                return Ok(ferron_dl_dir);
+            } else {
+                return Err(e);
+            }
+        }
+    };
+
+    if !tokio::fs::try_exists(&ferron_dl_dir).await.unwrap_or(false) {
+        tokio::fs::create_dir_all(&ferron_dl_dir).await?;
+    }
+
+    let current_ferron_version = tokio::fs::read_to_string(ferron_dl_dir.join("ferron.exe"))
         .await
-        .map_err(std::io::Error::other)?
-        .error_for_status()
-        .map_err(std::io::Error::other)?
-        .text()
-        .await
-        .map_err(std::io::Error::other)?;
-    let latest_ferron_version = latest_ferron_version.trim();
+        .ok()
+        .map(|s| s.trim().to_owned());
+    if current_ferron_version.as_deref() == Some(&*latest_ferron_version) {
+        // Already on the latest version, no need to download
+        return Ok(ferron_dl_dir);
+    }
 
     // 2. Obtain the latest version of Ferron 3 from:
     // - Windows: https://dl.ferron.sh/<version>/ferron-<version>-<targettriple>.zip
@@ -181,4 +186,18 @@ pub async fn obtain_ferron() -> std::io::Result<PathBuf> {
     }
 
     Ok(ferron_dl_dir)
+}
+
+#[inline]
+async fn get_latest_ferron_version() -> Result<String, std::io::Error> {
+    Ok(reqwest::get("https://dl.ferron.sh/latest3.ferron")
+        .await
+        .map_err(std::io::Error::other)?
+        .error_for_status()
+        .map_err(std::io::Error::other)?
+        .text()
+        .await
+        .map_err(std::io::Error::other)?
+        .trim()
+        .to_owned())
 }
