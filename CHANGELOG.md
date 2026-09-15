@@ -1,8 +1,8 @@
 # Ferron language server changelog
 
-## `ferron-language-server` UNRELEASED
+## `ferron-language-server` 0.1.2
 
-**Not yet released**
+**Released in September 15, 2026**
 
 - The language server now updates Ferron to the latest version when available.
 - Updated `ferron.conf` parser to the latest version with bugfixes.
