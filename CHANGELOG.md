@@ -5,6 +5,7 @@
 **Not yet released**
 
 - The language server now updates Ferron to the latest version when available.
+- Updated `ferron.conf` parser to the latest version with bugfixes.
 
 ## `ferron-language-server` 0.1.1
 
